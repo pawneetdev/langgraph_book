@@ -1,5 +1,5 @@
-from typing import TypedDict, List
-from langchain_core.messages import HumanMessage
+from typing import TypedDict, Union, List
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 from dotenv import load_dotenv
@@ -7,13 +7,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class AgentState(TypedDict):
-    messages : List[HumanMessage]
+    messages : List[Union[HumanMessage, AIMessage]]
 
 llm = ChatOpenAI(model="gpt-4o-mini")
 
 def process(state: AgentState) -> AgentState:
     response = llm.invoke(state["messages"])
+
+    state["messages"].append(AIMessage(content=response.content))
     print(f"AI: {response.text}")
+
     return state
 
 graph = StateGraph(AgentState)
@@ -24,9 +27,14 @@ graph.add_edge("process", END)
 
 agent = graph.compile()
 
+conversation_history = []
 user_input = input("Enter: ")
 
 while user_input != "exit":
-    agent.invoke({"messages": [HumanMessage(content=user_input)]})
-    user_input = input("Enter: ")
+    conversation_history.append(HumanMessage(content=user_input))
+
+    result = agent.invoke({"messages": conversation_history})
+
+    conversation_history = result["messages"]
+    user_input = input("\nEnter: ")
 
